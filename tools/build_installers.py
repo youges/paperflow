@@ -54,10 +54,11 @@ def linux_installer():
         "Maintainer: youges <96408349+youges@users.noreply.github.com>\n"
         "Section: office\nPriority: optional\n"
         f"Installed-Size: {installed_kib}\n"
-        "Depends: libc6 (>= 2.39), libstdc++6, libgcc-s1, libglib2.0-0, libgl1, libegl1, "
+        "Depends: libc6 (>= 2.39), libstdc++6, libgcc-s1, libglib2.0-0, libgl1, libegl1, libopengl0, "
         "libfontconfig1, libdbus-1-3, libx11-6, libx11-xcb1, libxext6, libxrender1, libxi6, libsm6, libice6, "
         "libxcb1, libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0, "
-        "libxcb-xinerama0, libxcb-xkb1, libxkbcommon-x11-0\n"
+        "libxcb-xinerama0, libxcb-xkb1, libxcb-shape0, libxcb-randr0, libxcb-sync1, libxcb-xfixes0, "
+        "libxcb-glx0, libxcb-shm0, libxcb-render0, libxcb-util1, libxkbcommon0, libxkbcommon-x11-0\n"
         "Recommends: fonts-noto-cjk\nHomepage: https://github.com/youges/paperflow\n"
         "Description: Local PDF merge, insertion and page splitting tool\n"
         " Supports ordered merging, inserting into existing PDFs, and numbered PDF/image exports.\n",

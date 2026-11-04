@@ -7,5 +7,5 @@ Comment[zh_CN]=本地合并、插入和拆分 PDF
 Exec=/usr/bin/paperflow
 Icon=paperflow
 Terminal=false
-Categories=Office;Utility;
+Categories=Office;
 StartupWMClass=PaperFlow
