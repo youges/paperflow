@@ -30,4 +30,5 @@ Corresponding application source and build instructions are supplied in
 PaperFlow-source.zip. The same source can be run directly with an independently
 installed compatible Qt/PySide package; see README.md. PyInstaller extracts the
 shared libraries when the executable starts. No application font is redistributed;
-the application uses fonts provided by Windows.
+the application uses fonts provided by the operating system (Windows fonts or
+Linux desktop fonts such as Noto Sans CJK).

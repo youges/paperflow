@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=PaperFlow
+Name[zh_CN]=纸序 PDF 工具
+Comment=Merge and split PDFs locally
+Comment[zh_CN]=本地合并、插入和拆分 PDF
+Exec=/usr/bin/paperflow
+Icon=paperflow
+Terminal=false
+Categories=Office;Utility;
+StartupWMClass=PaperFlow

@@ -3,10 +3,11 @@ import os
 from pathlib import Path
 import sys
 import traceback
+from app_config import log_directory
 
 
 def launch():
-    logdir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "PaperFlow"
+    logdir = log_directory()
     logdir.mkdir(parents=True, exist_ok=True)
     if sys.stdout is None:
         sys.stdout = open(os.devnull, "w", encoding="utf-8")
@@ -18,9 +19,10 @@ def launch():
     except Exception:
         error = traceback.format_exc()
         (logdir / "startup.log").write_text(error, encoding="utf-8")
-        if "--smoke-test" in sys.argv:
+        if "--smoke-test" in sys.argv or "--gui-smoke-test" in sys.argv:
             import json
-            folder = Path(sys.argv[sys.argv.index("--smoke-test") + 1])
+            flag = "--smoke-test" if "--smoke-test" in sys.argv else "--gui-smoke-test"
+            folder = Path(sys.argv[sys.argv.index(flag) + 1])
             folder.mkdir(parents=True, exist_ok=True)
             (folder / "smoke.json").write_text(json.dumps({"ok": False, "error": error}, ensure_ascii=False, indent=2), encoding="utf-8")
         elif os.name == "nt":

@@ -2,11 +2,22 @@
 
 一个在本机运行的中文 PDF 合并、拆分工具。无需账户，无需上传文件。
 
-[下载 Windows 免安装版](https://github.com/youges/paperflow/releases/latest) · [构建进度](https://github.com/youges/paperflow/actions)
+[下载 Linux / Windows 安装包](https://github.com/youges/paperflow/releases/latest) · [构建进度](https://github.com/youges/paperflow/actions)
 
 ## 直接使用
 
-Windows 10 / 11，64 位系统：双击发布包里的 **PaperFlow.exe** 即可，无需安装 Python。首次打开需要片刻解压运行环境。
+版本 1.2.0 提供以下 64 位（x86_64 / amd64）发行包，无需安装 Python：
+
+| 平台 | 文件 | 安装方式 |
+| --- | --- | --- |
+| Windows 10 / 11 | `PaperFlow-1.2.0-Windows-x64-Setup.exe` | 双击安装；当前用户安装，无需管理员权限，支持开始菜单、可选桌面快捷方式和卸载 |
+| Ubuntu 24.04+ / Debian 13+ | `paperflow_1.2.0_amd64.deb` | 在下载目录执行 `sudo apt install ./paperflow_1.2.0_amd64.deb`，然后在应用菜单打开“纸序 PDF 工具”，或运行 `paperflow` |
+| Linux 便携版 | `PaperFlow-1.2.0-Linux-x86_64.tar.gz` | 解压后执行 `./PaperFlow/PaperFlow`，仍需系统桌面依赖和 glibc 2.39+ |
+| Windows 便携版 | `PaperFlow-Windows.zip` / `PaperFlow.exe` | 解压后双击程序 |
+
+Linux 包在 Ubuntu 24.04 amd64 上构建、安装及图形界面自检；其他发行版仅在运行库兼容时可使用，不包含 ARM / Alpine musl 支持。建议安装 `fonts-noto-cjk` 以正确显示中文。Debian 13 属兼容目标，未单独在 Debian 上运行集成测试。
+
+Windows 可在“设置 → 应用”或开始菜单的卸载入口卸载；Linux 卸载命令为 `sudo apt remove paperflow`。卸载不会删除用户自己的 PDF 和个人设置。便携版首次打开需要片刻解压运行环境。
 
 ### 合并 PDF
 
@@ -49,7 +60,7 @@ PNG / JPG 会渲染原页面上可见的签名、印章和批注。无可见外�
 - 点击「取消」后，在当前处理步骤结束时停止，并清理本次临时结果。保存大型 PDF 时需要等待当前保存步骤结束。
 - 页面旋转和页面尺寸会保留，单页 PDF 保留文字、图像与可复制的文本；输出图片为页面的平面图像。
 - 支持常见 PDF 页面和表单。单页拆分支持按上述方式保留签名外观；文档级附件、数字签名的验证效力、原有书签不属于本工具的保留范围；请保留原始文件。
-- 错误日志在 `%LOCALAPPDATA%\PaperFlow\paperflow.log`；启动异常日志在同一目录的 `startup.log`。
+- Windows 错误日志在 `%LOCALAPPDATA%\PaperFlow\paperflow.log`；Linux 位于 `${XDG_STATE_HOME:-~/.local/state}/paperflow/paperflow.log`。启动异常日志在同一目录的 `startup.log`。
 
 ## 从源码运行
 
@@ -70,6 +81,8 @@ python -m venv .venv
 ```
 
 打包输出：`dist/PaperFlow.exe` 和 `dist/PaperFlow-Windows.zip`。ZIP 中包含可执行文件、说明、源码压缩包和第三方许可文件。
+
+Windows 构建安装包需要 Inno Setup 6；Linux 在 Ubuntu 24.04 安装桌面依赖、`python3-venv`、`dpkg-dev` 后运行 `bash build.sh`。`tools/build_installers.py` 创建原生安装包，`tools/verify_install.py` 验证安装后的程序和卸载。GitHub Actions 分别在 Windows 和 Ubuntu 构建，两个平台的测试全部通过后才发布到 Release。
 
 源码结构：`app.py` 为桌面界面，`launcher.py` 为带启动日志的打包入口，`pdf_engine.py` 为独立 PDF 处理核心，`tests/` 为功能与界面集成测试，`tools/` 为构建和界面检查工具。
 

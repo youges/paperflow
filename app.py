@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import threading
 from typing import Callable
+from app_config import VERSION, UI_FONT, log_directory
 
 from PySide6.QtCore import Qt, QSize, QRectF, QThread, Signal, QUrl, QTimer, QSettings
 from PySide6.QtGui import (
@@ -28,7 +29,7 @@ from pdf_engine import (
 
 
 STYLE = """
-* { font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; font-size: 13px; color: #263932; }
+* { font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif; font-size: 13px; color: #263932; }
 QMainWindow, QWidget#root { background: #f4f6f5; }
 QWidget#sidebar { background: #ffffff; border-right: 1px solid #e1e7e3; }
 QLabel { background: transparent; border: none; }
@@ -317,7 +318,7 @@ class MainWindow(QMainWindow):
         side.addWidget(label("●  本地离线处理", "badge"))
         side.addWidget(label("文件仅在你的电脑中处理\n无需上传，无需联网", "muted"))
         side.addSpacing(8)
-        side.addWidget(label("PaperFlow  1.1.1", "eyebrow"))
+        side.addWidget(label(f"PaperFlow  {VERSION}", "eyebrow"))
         shell.addWidget(sidebar)
 
         main = QWidget()
@@ -892,7 +893,7 @@ def configure_application(app):
         for name in ("msyh.ttc", "msyhbd.ttc", "segoeui.ttf", "seguisym.ttf"):
             if (fonts / name).is_file():
                 QFontDatabase.addApplicationFont(str(fonts / name))
-    app.setFont(QFont("Microsoft YaHei UI", 10))
+    app.setFont(QFont(UI_FONT, 10))
     app.setStyle("Fusion")
     app.setStyleSheet(STYLE)
 
@@ -945,21 +946,22 @@ def _smoke_pdf_checks(folder: Path) -> list[str]:
 
 
 def main():
-    smoke = "--smoke-test" in sys.argv
-    if smoke:
+    smoke_flag = "--smoke-test" if "--smoke-test" in sys.argv else "--gui-smoke-test"
+    smoke = smoke_flag in sys.argv
+    if smoke and smoke_flag == "--smoke-test":
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
     app = QApplication(sys.argv)
     app.setApplicationName("PaperFlow")
     app.setOrganizationName("PaperFlow")
     configure_application(app)
-    logdir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "PaperFlow"
+    logdir = log_directory()
     logdir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=logdir / "paperflow.log", level=logging.ERROR,
                         format="%(asctime)s %(levelname)s %(message)s", encoding="utf-8")
     window = MainWindow()
     window.show()
     if smoke:
-        folder = Path(sys.argv[sys.argv.index("--smoke-test") + 1]).resolve()
+        folder = Path(sys.argv[sys.argv.index(smoke_flag) + 1]).resolve()
         folder.mkdir(parents=True, exist_ok=True)
 
         def snapshot():
