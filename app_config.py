@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 UI_FONT = "Microsoft YaHei UI" if os.name == "nt" else "Noto Sans CJK SC"
 
 

@@ -29,6 +29,14 @@ license notices remain with their respective authors.
 Corresponding application source and build instructions are supplied in
 PaperFlow-source.zip. The same source can be run directly with an independently
 installed compatible Qt/PySide package; see README.md. PyInstaller extracts the
-shared libraries when the executable starts. No application font is redistributed;
+shared libraries when the executable starts. No separate UI font is redistributed;
 the application uses fonts provided by the operating system (Windows fonts or
 Linux desktop fonts such as Noto Sans CJK).
+
+Office document conversion invokes a separately installed, unmodified LibreOffice
+via its command-line interface. LibreOffice is not bundled in the PaperFlow
+Windows executable or portable archive. Linux package recommendations can install
+it through the operating system package manager. Its own license notices and
+source are available at https://www.libreoffice.org/about-us/licenses/.
+The TXT converter uses the unmodified CJK fallback font provided by MuPDF;
+this is separate from the system fonts used by the application interface.

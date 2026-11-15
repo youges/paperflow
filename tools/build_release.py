@@ -55,7 +55,7 @@ def prepare_assets():
 def package():
     source = ROOT / "dist/PaperFlow-source.zip"
     files = [ROOT / name for name in (
-        "app.py", "app_config.py", "launcher.py", "pdf_engine.py", "requirements.txt", "requirements-dev.txt",
+        "app.py", "app_config.py", "launcher.py", "pdf_engine.py", "conversion_engine.py", "requirements.txt", "requirements-dev.txt",
         "README.md", "build.ps1", "build.sh", "THIRD_PARTY_NOTICES.md", "LICENSE.txt", ".gitignore", ".gitattributes",
     )]
     for folder in ("tests", "tools", "assets", "licenses", ".github", "packaging"):
@@ -102,9 +102,18 @@ if __name__ == "__main__":
     checkdir.mkdir(parents=True, exist_ok=True)
     (checkdir / "smoke.json").unlink(missing_ok=True)
     executable = ROOT / ("dist/PaperFlow.exe" if os.name == "nt" else "dist/PaperFlow")
-    subprocess.run([str(executable), "--smoke-test", str(checkdir),
-                    "--signature-fixture", str(ROOT / "tests/fixtures/signed-test.pdf")],
-                   check=True, env=build_env, timeout=60)
+    arguments = [str(executable), "--smoke-test", str(checkdir),
+                 "--signature-fixture", str(ROOT / "tests/fixtures/signed-test.pdf")]
+    if os.environ.get("PAPERFLOW_REQUIRE_OFFICE") == "1":
+        sys.path.insert(0, str(ROOT / "tests"))
+        from document_samples import make_docx, make_xlsx, make_pptx
+        fixtures = checkdir / "office-fixtures"
+        fixtures.mkdir(exist_ok=True)
+        make_docx(fixtures / "word.docx")
+        make_xlsx(fixtures / "excel.xlsx")
+        make_pptx(fixtures / "slides.pptx")
+        arguments.extend(["--document-fixtures", str(fixtures)])
+    subprocess.run(arguments, check=True, env=build_env, timeout=180)
     report = json.loads((checkdir / "smoke.json").read_text(encoding="utf-8"))
     if not report.get("ok") or not report.get("frozen"):
         raise RuntimeError(f"Portable executable verification failed: {report}")

@@ -1,4 +1,4 @@
-"""PaperFlow: a completely local Windows PDF workbench."""
+"""PaperFlow: a completely local Windows and Linux PDF workbench."""
 from __future__ import annotations
 
 import json
@@ -25,6 +25,9 @@ from PySide6.QtWidgets import (
 from pdf_engine import (
     Cancelled, PasswordRequired, PdfError, PdfSource, inspect_pdf, merge_pdfs,
     numeric_name, parse_pages, preview_page, split_pdf,
+)
+from conversion_engine import (
+    FILE_FILTER, convert_documents, find_libreoffice, validate_inputs,
 )
 
 
@@ -148,9 +151,10 @@ class FileDelegate(QStyledItemDelegate):
         return QSize(400, 79)
 
     def paint(self, painter, option, index):
-        source: PdfSource = index.data(Qt.ItemDataRole.UserRole)
+        source = index.data(Qt.ItemDataRole.UserRole)
         if source is None:
             return
+        path = source if isinstance(source, Path) else source.path
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
@@ -167,24 +171,26 @@ class FileDelegate(QStyledItemDelegate):
         painter.drawRoundedRect(QRectF(x + 53, y + 18, 39, 43), 7, 7)
         painter.setPen(QColor("#b16c58"))
         painter.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
-        painter.drawText(x + 53, y + 18, 39, 43, Qt.AlignmentFlag.AlignCenter, "PDF")
+        painter.drawText(x + 53, y + 18, 39, 43, Qt.AlignmentFlag.AlignCenter, path.suffix[1:].upper()[:4])
         painter.setPen(QColor("#293f31"))
         painter.setFont(QFont("Microsoft YaHei UI", 10, QFont.Weight.DemiBold))
         metrics = QFontMetrics(painter.font())
-        name = metrics.elidedText(source.path.name, Qt.TextElideMode.ElideMiddle, max(40, width - 125))
+        name = metrics.elidedText(path.name, Qt.TextElideMode.ElideMiddle, max(40, width - 125))
         painter.drawText(x + 108, y + 16, width - 125, 25, Qt.AlignmentFlag.AlignVCenter, name)
         painter.setPen(QColor("#8a958e"))
         painter.setFont(QFont("Microsoft YaHei UI", 9))
+        detail = str(path.parent) if isinstance(source, Path) else f"{source.pages} 页     ·     {size_text(source.size)}"
         painter.drawText(x + 108, y + 42, width - 125, 22, Qt.AlignmentFlag.AlignVCenter,
-                         f"{source.pages} 页     ·     {size_text(source.size)}")
+                         QFontMetrics(painter.font()).elidedText(detail, Qt.TextElideMode.ElideMiddle, max(40, width - 125)))
         painter.restore()
 
 
 class FileList(QListWidget):
     files_dropped = Signal(list)
 
-    def __init__(self):
+    def __init__(self, documents=False):
         super().__init__()
+        self.documents = documents
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -192,7 +198,7 @@ class FileList(QListWidget):
         self.setMouseTracking(True)
         self.setMinimumHeight(210)
         self.setSpacing(2)
-        self.setAccessibleName("PDF 合并列表，按当前显示的从上到下顺序合并")
+        self.setAccessibleName("待转换文档列表，按从上到下顺序处理" if documents else "PDF 合并列表，按当前显示的从上到下顺序合并")
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -230,10 +236,12 @@ class FileList(QListWidget):
         painter.drawText(0, cy - 75, int(bounds.width()), 60, Qt.AlignmentFlag.AlignCenter, "+")
         painter.setPen(QColor("#425e4c"))
         painter.setFont(QFont("Microsoft YaHei UI", 12, QFont.Weight.DemiBold))
-        painter.drawText(0, cy - 12, int(bounds.width()), 30, Qt.AlignmentFlag.AlignCenter, "将 PDF 拖到这里")
+        painter.drawText(0, cy - 12, int(bounds.width()), 30, Qt.AlignmentFlag.AlignCenter,
+                         "将文档或图片拖到这里" if self.documents else "将 PDF 拖到这里")
         painter.setPen(QColor("#8c9991"))
         painter.setFont(QFont("Microsoft YaHei UI", 9))
-        painter.drawText(0, cy + 24, int(bounds.width()), 26, Qt.AlignmentFlag.AlignCenter, "或点击右上角「添加 PDF」选择文件")
+        painter.drawText(0, cy + 24, int(bounds.width()), 26, Qt.AlignmentFlag.AlignCenter,
+                         "Word / Excel / PowerPoint / 图片 / TXT" if self.documents else "或点击右上角「添加 PDF」选择文件")
         painter.end()
 
 
@@ -265,7 +273,7 @@ class Preview(QLabel):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("纸序 PaperFlow · PDF 合并与拆分")
+        self.setWindowTitle("纸序 PaperFlow · PDF 工作台")
         self.setWindowIcon(app_icon())
         self.resize(1120, 850)
         self.setMinimumSize(980, 680)
@@ -307,7 +315,7 @@ class MainWindow(QMainWindow):
         side.addSpacing(35)
         side.addWidget(label("  文件工具", "muted"))
         self.navigation = QButtonGroup(self)
-        for index, title in enumerate(("合并 PDF", "拆分 PDF")):
+        for index, title in enumerate(("合并 PDF", "拆分 PDF", "文档转 PDF")):
             nav = button(title, role="nav")
             nav.setCheckable(True)
             self.navigation.addButton(nav, index)
@@ -338,6 +346,7 @@ class MainWindow(QMainWindow):
         self.pages.setMinimumHeight(575)
         self.pages.addWidget(self._merge_page())
         self.pages.addWidget(self._split_page())
+        self.pages.addWidget(self._convert_page())
         self.scroll = QScrollArea()
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll.setWidgetResizable(True)
@@ -551,14 +560,148 @@ class MainWindow(QMainWindow):
         outer.addWidget(outputcard)
         return widget
 
+    def _convert_page(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(15)
+        filecard, content = card()
+        toolbar = QHBoxLayout()
+        toolbar.addWidget(label("待转换文档", "section"))
+        toolbar.addStretch()
+        toolbar.addWidget(button("＋  添加文档", self._choose_documents))
+        content.addLayout(toolbar)
+        content.addWidget(label("可多次添加或拖入文件；合为一份时，按列表从上到下排列。", "muted", True))
+        self.document_list = FileList(documents=True)
+        self.document_list.files_dropped.connect(self._add_documents)
+        self.document_list.currentRowChanged.connect(self._refresh)
+        self.document_list.model().rowsMoved.connect(self._refresh)
+        content.addWidget(self.document_list, 1)
+        actions = QHBoxLayout()
+        self.document_count = label("尚未添加文件", "muted")
+        actions.addWidget(self.document_count, 1)
+        self.document_up = button("↑ 上移", lambda: self._move_document(-1))
+        self.document_down = button("↓ 下移", lambda: self._move_document(1))
+        self.document_remove = button("移除", self._remove_document)
+        self.document_clear = button("清空", self.document_list.clear, "ghost")
+        self.document_list.model().rowsRemoved.connect(self._refresh)
+        self.document_list.model().modelReset.connect(self._refresh)
+        for action in (self.document_up, self.document_down, self.document_remove, self.document_clear):
+            actions.addWidget(action)
+        content.addLayout(actions)
+        layout.addWidget(filecard, 1)
+
+        settingscard, settings = card()
+        row = QHBoxLayout()
+        row.addWidget(label("保存方式", "section"))
+        self.conversion_mode = QComboBox()
+        self.conversion_mode.addItems(["每个文档分别保存为 PDF", "按列表顺序转换并合为一份 PDF"])
+        row.addWidget(self.conversion_mode, 1)
+        row.addWidget(label("TXT 编码", "muted"))
+        self.text_encoding = QComboBox()
+        for title, value in (("自动", "auto"), ("UTF-8", "utf-8-sig"), ("GB18030 / GBK", "gb18030"), ("UTF-16", "utf-16")):
+            self.text_encoding.addItem(title, value)
+        row.addWidget(self.text_encoding)
+        settings.addLayout(row)
+        self.office_status = label("", "muted", True)
+        settings.addWidget(self.office_status)
+        component = QHBoxLayout()
+        self.office_path = QLineEdit(str(self.settings.value("libreoffice_path", "")))
+        self.office_path.setPlaceholderText("自动检测 LibreOffice，也可选择 soffice 程序路径")
+        self.office_path.setAccessibleName("LibreOffice 程序路径，留空自动检测")
+        self.office_path.editingFinished.connect(self._detect_office)
+        component.addWidget(self.office_path, 1)
+        component.addWidget(button("选择组件…", self._choose_office))
+        component.addWidget(button("重新检测", self._detect_office))
+        component.addWidget(button("下载 LibreOffice", lambda: QDesktopServices.openUrl(QUrl("https://www.libreoffice.org/download/download-libreoffice/")), "ghost"))
+        settings.addLayout(component)
+        settings.addWidget(label("Office 需要本机 LibreOffice（Writer / Calc / Impress）；图片和 TXT 可直接转换。Office 排版取决于原文档打印设置和本机字体，请核对转换结果。", "muted", True))
+        layout.addWidget(settingscard)
+
+        outputcard, output = card()
+        output.addWidget(label("保存文件夹", "section"))
+        row = QHBoxLayout()
+        self.convert_output = QLineEdit()
+        self.convert_output.setPlaceholderText("选择转换结果的保存文件夹")
+        self.convert_output.setAccessibleName("文档转 PDF 保存文件夹")
+        row.addWidget(self.convert_output, 1)
+        row.addWidget(button("浏览…", self._choose_convert_output))
+        output.addLayout(row)
+        output.addWidget(label("自动新建结果子文件夹；保留原文件，同名文档会自动编号。", "muted", True))
+        layout.addWidget(outputcard)
+        self._detect_office()
+        return widget
+
+    def _documents(self):
+        return [self.document_list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.document_list.count())]
+
+    def _choose_documents(self):
+        paths, _ = QFileDialog.getOpenFileNames(self, "添加要转换的文档或图片", self._last_directory(), FILE_FILTER)
+        if paths:
+            self._add_documents(paths)
+
+    def _add_documents(self, paths):
+        if self.busy or not paths:
+            return
+        try:
+            documents = validate_inputs(paths)
+        except PdfError as exc:
+            QMessageBox.warning(self, "无法添加文档", str(exc))
+            return
+        for path in documents:
+            item = QListWidgetItem()
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            item.setToolTip(str(path))
+            self.document_list.addItem(item)
+        self.settings.setValue("last_directory", str(documents[-1].parent))
+        if not self.convert_output.text().strip():
+            self.convert_output.setText(str(documents[0].parent))
+        self.document_list.setCurrentRow(self.document_list.count() - 1)
+        self._refresh()
+
+    def _move_document(self, offset):
+        row = self.document_list.currentRow()
+        target = row + offset
+        if 0 <= row < self.document_list.count() and 0 <= target < self.document_list.count():
+            item = self.document_list.takeItem(row)
+            self.document_list.insertItem(target, item)
+            self.document_list.setCurrentRow(target)
+        self._refresh()
+
+    def _remove_document(self):
+        row = self.document_list.currentRow()
+        if row >= 0:
+            self.document_list.takeItem(row)
+        self._refresh()
+
+    def _detect_office(self):
+        selected = self.office_path.text().strip()
+        executable = find_libreoffice(selected)
+        self.settings.setValue("libreoffice_path", selected)
+        self.office_status.setText("✓ Office 转换组件已就绪" if executable else "尚未找到 LibreOffice；图片和 TXT 仍可直接转换。")
+        self.office_status.setToolTip(str(executable) if executable else "安装后点击「重新检测」，或选择 soffice.com / soffice.exe / soffice。")
+
+    def _choose_office(self):
+        path, _ = QFileDialog.getOpenFileName(self, "选择 LibreOffice 的 soffice 程序", self.office_path.text() or self._last_directory(),
+                                             "LibreOffice 程序 (soffice.exe soffice.com soffice libreoffice);;所有文件 (*)")
+        if path:
+            self.office_path.setText(path)
+            self._detect_office()
+
+    def _choose_convert_output(self):
+        path = QFileDialog.getExistingDirectory(self, "选择转换结果的保存文件夹", self.convert_output.text() or self._last_directory())
+        if path:
+            self.convert_output.setText(path)
+
     def _switch(self, index):
         if self.busy:
             return
         self.navigation.button(index).setChecked(True)
         self.pages.setCurrentIndex(index)
-        self.heading.setText(("按顺序，合为一份。", "逐页拆分，清楚有序。")[index])
+        self.heading.setText(("按顺序，合为一份。", "逐页拆分，清楚有序。", "多种格式，统一成 PDF。")[index])
         self.subheading.setText(("先导入的文件排在前面，每一页都在正确的位置。",
-                                 "导出独立 PDF 或图片，让每一页拥有自己的数字编号。")[index])
+                                 "导出独立 PDF 或图片，让每一页拥有自己的数字编号。",
+                                 "Word、Excel、PowerPoint、图片与 TXT，在本机批量转换。")[index])
         self._refresh()
 
     def _sources(self) -> list[PdfSource]:
@@ -572,7 +715,7 @@ class MainWindow(QMainWindow):
         self.insert_panel.setVisible(inserting)
         self.insert_page.setEnabled(not self.busy and self.base_source is not None and self.insert_position.currentIndex() >= 2)
         self.insert_position.setEnabled(not self.busy and self.base_source is not None)
-        self.pages.setMinimumHeight(755 if inserting and self.pages.currentIndex() == 0 else 615)
+        self.pages.setMinimumHeight(755 if inserting and self.pages.currentIndex() == 0 else 700 if self.pages.currentIndex() == 2 else 615)
         if self.base_source is not None:
             after = self._insertion_offset()
             tail = self.base_source.pages - after
@@ -598,9 +741,18 @@ class MainWindow(QMainWindow):
         samples = [numeric_name(self.start_number.value() + n, self.padding.value(), extension) for n in range(3)]
         self.naming_preview.setText("命名示例：" + "、".join(samples))
         splitting = self.pages.currentIndex() == 1
-        self.run_button.setText("拆分并保存" if splitting else "插入并另存" if inserting else "合并并保存")
-        self.run_button.setEnabled(not self.busy and (self.split_source is not None if splitting else count > 0 and (not inserting or self.base_source is not None)))
+        converting = self.pages.currentIndex() == 2
+        document_count, document_row = self.document_list.count(), self.document_list.currentRow()
+        self.document_count.setText(f"{document_count} 个文档" if document_count else "尚未添加文件")
+        self.document_up.setEnabled(not self.busy and document_row > 0)
+        self.document_down.setEnabled(not self.busy and 0 <= document_row < document_count - 1)
+        self.document_remove.setEnabled(not self.busy and document_row >= 0)
+        self.document_clear.setEnabled(not self.busy and document_count > 0)
+        self.run_button.setText("转换并保存" if converting else "拆分并保存" if splitting else "插入并另存" if inserting else "合并并保存")
+        ready = document_count > 0 if converting else self.split_source is not None if splitting else count > 0 and (not inserting or self.base_source is not None)
+        self.run_button.setEnabled(not self.busy and ready)
         self.file_list.viewport().update()
+        self.document_list.viewport().update()
 
     def _move(self, offset):
         row = self.file_list.currentRow()
@@ -767,7 +919,21 @@ class MainWindow(QMainWindow):
         if self.busy:
             return
         try:
-            if self.pages.currentIndex() == 0:
+            if self.pages.currentIndex() == 2:
+                sources = self._documents()
+                if not sources:
+                    return
+                if not self.convert_output.text().strip():
+                    self._choose_convert_output()
+                    if not self.convert_output.text().strip():
+                        return
+                destination = Path(self.convert_output.text().strip())
+                options = dict(combine=self.conversion_mode.currentIndex() == 1,
+                               libreoffice=self.office_path.text().strip(), text_encoding=self.text_encoding.currentData())
+                self._converted_count = 1 if options["combine"] else len(sources)
+                self._run_task(lambda p, c: convert_documents(sources, destination, progress=p, cancel=c, **options),
+                               self._conversion_complete, "正在转换文档…")
+            elif self.pages.currentIndex() == 0:
                 base = self.base_source if self.merge_mode.currentIndex() == 1 else None
                 if self.merge_mode.currentIndex() == 1 and base is None:
                     raise PdfError("请先选择现有 PDF。")
@@ -872,6 +1038,12 @@ class MainWindow(QMainWindow):
             self.status.setText(f"✓ 合并完成，共 {self._merged_count} 页")
         self.status.setToolTip(str(path))
 
+    def _conversion_complete(self, path: Path):
+        self.last_output = path
+        self.open_result.show()
+        self.status.setText(f"✓ 转换完成，已保存 {self._converted_count} 个 PDF")
+        self.status.setToolTip(str(path))
+
     def _open_result(self):
         if self.last_output is None:
             return
@@ -942,6 +1114,26 @@ def _smoke_pdf_checks(folder: Path) -> list[str]:
             pixmap = pymupdf.Pixmap(str(result / f"001.{extension}"))
             assert (pixmap.width, pixmap.height) == (300, 420)
         checks.append("split_" + extension + "_numeric_names")
+    text = testdir / "中文文本.txt"
+    text.write_text("PAPERFLOW TEXT 中文转换\n" + "分页检查\n" * 80, encoding="utf-8")
+    image = testdir / "图片.png"
+    with pymupdf.open(str(merged)) as document:
+        document[0].get_pixmap().save(image)
+    result = convert_documents([text, image], testdir, combine=True)
+    with pymupdf.open(result / "合并结果.pdf") as document:
+        assert len(document) >= 3 and "中文转换" in document[0].get_text()
+        assert document[-1].get_images()
+    checks.append("convert_images_chinese_text_and_order")
+    if "--document-fixtures" in sys.argv:
+        fixtures = Path(sys.argv[sys.argv.index("--document-fixtures") + 1])
+        office_files = [fixtures / name for name in ("word.docx", "excel.xlsx", "slides.pptx")]
+        result = convert_documents(office_files, testdir, combine=True)
+        with pymupdf.open(result / "合并结果.pdf") as document:
+            assert len(document) == 3
+            for page, tag in zip(document, ("WORD SAMPLE", "EXCEL SAMPLE", "POWERPOINT SAMPLE")):
+                assert tag in page.get_text()
+                assert "中文测试" in page.get_text().replace(" ", "")
+        checks.append("convert_word_excel_powerpoint")
     return checks
 
 
@@ -970,6 +1162,9 @@ def main():
                 window._switch(1)
                 app.processEvents()
                 window.grab().save(str(folder / "packaged-split.png"))
+                window._switch(2)
+                app.processEvents()
+                window.grab().save(str(folder / "packaged-convert.png"))
                 checks = _smoke_pdf_checks(folder)
                 result = {"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
                           "title": window.windowTitle(), "checks": checks}

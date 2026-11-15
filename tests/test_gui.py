@@ -108,3 +108,35 @@ def test_gui_insert_before_and_after_page(qtapp, tmp_path, monkeypatch):
     window.merge_mode.setCurrentIndex(0)
     assert not window.insert_panel.isVisible()
     window.close()
+
+
+def test_gui_document_conversion_reorder_and_modes(qtapp, tmp_path, monkeypatch):
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: pytest.fail(str(args[2])))
+    first, second = tmp_path / "Z说明.txt", tmp_path / "A说明.txt"
+    first.write_text("FIRST 中文", encoding="utf-8")
+    second.write_text("SECOND 中文", encoding="utf-8")
+    window = MainWindow()
+    window.show()
+    window._switch(2)
+    assert window.run_button.text() == "转换并保存"
+    assert not window.run_button.isEnabled()
+    window._add_documents([str(first)])
+    window._add_documents([str(second)])
+    assert window._documents() == [first, second]
+    QTest.mouseClick(window.document_up, Qt.MouseButton.LeftButton)
+    assert window._documents() == [second, first]
+    window.conversion_mode.setCurrentIndex(1)
+    window.convert_output.setText(str(tmp_path))
+    QTest.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
+    wait_until_idle(window, qtapp)
+    merged = window.last_output / "合并结果.pdf"
+    assert texts(merged) == ["SECOND 中文", "FIRST 中文"]
+    assert "1 个 PDF" in window.status.text()
+    window.conversion_mode.setCurrentIndex(0)
+    QTest.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
+    wait_until_idle(window, qtapp)
+    assert sorted(path.name for path in window.last_output.iterdir()) == ["A说明.pdf", "Z说明.pdf"]
+    assert merged.is_file()
+    QTest.mouseClick(window.document_clear, Qt.MouseButton.LeftButton)
+    assert not window.run_button.isEnabled()
+    window.close()

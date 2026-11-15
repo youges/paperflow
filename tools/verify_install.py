@@ -15,15 +15,20 @@ from app_config import VERSION
 def smoke(executable, output, graphical=False):
     flag = "--gui-smoke-test" if graphical else "--smoke-test"
     command = [str(executable), flag, str(output), "--signature-fixture", str(ROOT / "tests/fixtures/signed-test.pdf")]
+    if os.environ.get("PAPERFLOW_REQUIRE_OFFICE") == "1":
+        command.extend(["--document-fixtures", str(ROOT / "tmp/release-check/office-fixtures")])
     environment = os.environ.copy()
     if graphical:
         environment["QT_QPA_PLATFORM"] = "xcb"
         environment["QT_OPENGL"] = "software"
         command = ["xvfb-run", "-a"] + command
-    subprocess.run(command, check=True, timeout=90, env=environment)
+    subprocess.run(command, check=True, timeout=180, env=environment)
     report = json.loads((output / "smoke.json").read_text(encoding="utf-8"))
     assert report.get("ok") and report.get("frozen"), report
     assert "signed_pdf_visible_appearance" in report["checks"], report
+    assert "convert_images_chinese_text_and_order" in report["checks"], report
+    if os.environ.get("PAPERFLOW_REQUIRE_OFFICE") == "1":
+        assert "convert_word_excel_powerpoint" in report["checks"], report
 
 
 if __name__ == "__main__":

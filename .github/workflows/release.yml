@@ -23,10 +23,11 @@ jobs:
           - os: ubuntu-24.04
             platform: Linux
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONUTF8: '1'
+      PAPERFLOW_REQUIRE_OFFICE: '1'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -40,11 +41,21 @@ jobs:
             choco install innosetup --yes --no-progress
             if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
           }
+      - name: Prepare Windows Office conversion component
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\Program Files\LibreOffice\program\soffice.com')) {
+            choco install libreoffice-fresh --yes --no-progress
+            if ($LASTEXITCODE -notin @(0, 3010)) { throw 'LibreOffice installation failed' }
+            $global:LASTEXITCODE = 0
+          }
       - name: Prepare Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libopengl0 libglib2.0-0 libfontconfig1 libdbus-1-3 libx11-6 libx11-xcb1 libxext6 libxrender1 libxi6 libsm6 libice6 libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-shape0 libxcb-randr0 libxcb-sync1 libxcb-xfixes0 libxcb-glx0 libxcb-shm0 libxcb-render0 libxcb-util1 libxkbcommon0 libxkbcommon-x11-0 fonts-noto-cjk xvfb xauth desktop-file-utils
+          sudo apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress
       - name: Test and build Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
@@ -79,26 +90,37 @@ jobs:
         with:
           path: release-files
           merge-multiple: true
-      - name: Publish version 1.2.0
+      - name: Publish version 1.3.0
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           cat > release-notes.txt <<'NOTES'
-          纸序 PaperFlow 1.2.0 — Linux 与 Windows 安装包
+          纸序 PaperFlow 1.3.0 — 文档转 PDF
+
+          新增「文档转 PDF」：Word（DOC/DOCX）、Excel（XLS/XLSX）、PowerPoint（PPT/PPTX）、ODT/ODS/ODP/RTF、图片（PNG/JPG/BMP/TIFF）及 TXT。
+          支持批量分别保存，或按列表顺序转换并合为一份 PDF；可拖动和上移/下移调整顺序。
+          中文 TXT 自动识别 UTF-8、带 BOM 的 UTF-16、GB18030，也可手选编码；自动换行分页。
+          原文件保持完整，同名结果自动编号；失败或取消会清理本次临时文件。
+
+          Office 转换需本机安装 LibreOffice Writer/Calc/Impress，不要求安装 Microsoft Office。
+          Windows 在新页面点击「下载 LibreOffice」安装后重新检测，也可选择 soffice 程序路径。
+          Linux DEB 推荐依赖会在普通 apt install 时一并安装；便携版请自行安装对应组件。
+          图片和 TXT 无需额外安装 Office 组件。所有转换均在本机完成。
+          Office 字体和打印设置可能影响排版，请核对输出。
 
           Windows 10/11 x64：下载 Windows-x64-Setup.exe，按向导安装；支持开始菜单、可选桌面快捷方式和卸载。
-          Ubuntu 24.04+ / Debian 13+ amd64：下载 .deb，用 sudo apt install ./paperflow_1.2.0_amd64.deb 安装。
+          Ubuntu 24.04+ / Debian 13+ amd64：下载 .deb，用 sudo apt install ./paperflow_1.3.0_amd64.deb 安装。
           Linux 便携版：解压 Linux-x86_64.tar.gz 后运行 PaperFlow，需要桌面运行库。
           同时保留 Windows 便携程序和完整源码包。无需自行安装 Python。
 
           支持按导入顺序合并、指定位置插入、按数字命名单页 PDF/PNG/JPG 拆分。
           保留签名外观不代表继承数字证书验签效力，原始签名文件请保留。
 
-          两个平台均运行回归测试、打包程序自检，并验证安装后的程序及卸载流程。Linux 额外通过 Xvfb 检查 X11 图形界面。
+          两个平台均执行真实 Word/Excel/PowerPoint 转换测试、打包程序自检，以及安装后的转换和卸载验证。Linux 额外通过 Xvfb 检查 X11 图形界面。
           NOTES
-          if gh release view v1.2.0 >/dev/null 2>&1; then
-            gh release upload v1.2.0 release-files/* --clobber
+          if gh release view v1.3.0 >/dev/null 2>&1; then
+            gh release upload v1.3.0 release-files/* --clobber
           else
-            gh release create v1.2.0 release-files/* --target "$GITHUB_SHA" --title 'PaperFlow 1.2.0 — Linux & Windows' --notes-file release-notes.txt
+            gh release create v1.3.0 release-files/* --target "$GITHUB_SHA" --title 'PaperFlow 1.3.0 — 文档转 PDF' --notes-file release-notes.txt
           fi

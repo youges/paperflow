@@ -59,9 +59,9 @@ def linux_installer():
         "libxcb1, libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0, "
         "libxcb-xinerama0, libxcb-xkb1, libxcb-shape0, libxcb-randr0, libxcb-sync1, libxcb-xfixes0, "
         "libxcb-glx0, libxcb-shm0, libxcb-render0, libxcb-util1, libxkbcommon0, libxkbcommon-x11-0\n"
-        "Recommends: fonts-noto-cjk\nHomepage: https://github.com/youges/paperflow\n"
-        "Description: Local PDF merge, insertion and page splitting tool\n"
-        " Supports ordered merging, inserting into existing PDFs, and numbered PDF/image exports.\n",
+        "Recommends: fonts-noto-cjk, libreoffice-writer, libreoffice-calc, libreoffice-impress\nHomepage: https://github.com/youges/paperflow\n"
+        "Description: Local PDF merge, splitting and document conversion tool\n"
+        " Supports ordered merging, page splitting and Office/image/text conversion to PDF.\n",
         encoding="utf-8")
     subprocess.run(["dpkg-deb", "--root-owner-group", "--build", str(stage),
                     str(ROOT / f"dist/paperflow_{VERSION}_amd64.deb")], check=True)

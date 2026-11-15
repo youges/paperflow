@@ -11,4 +11,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed; build stopped.' }
 & $paperflowPython tools\build_release.py
 if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
-Write-Host 'Ready: dist\PaperFlow-1.2.0-Windows-x64-Setup.exe and portable packages'
+Write-Host 'Ready: dist\PaperFlow-1.3.0-Windows-x64-Setup.exe and portable packages'
