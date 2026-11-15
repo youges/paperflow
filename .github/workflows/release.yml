@@ -80,6 +80,15 @@ jobs:
             dist/*.deb
             dist/*.tar.gz
           if-no-files-found: error
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaperFlow-${{ matrix.platform }}-diagnostics
+          path: |
+            tmp/install-check-smoke.json
+            tmp/release-check/smoke.json
+          if-no-files-found: ignore
 
   publish:
     needs: build

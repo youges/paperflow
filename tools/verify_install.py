@@ -22,8 +22,14 @@ def smoke(executable, output, graphical=False):
         environment["QT_QPA_PLATFORM"] = "xcb"
         environment["QT_OPENGL"] = "software"
         command = ["xvfb-run", "-a"] + command
-    subprocess.run(command, check=True, timeout=180, env=environment)
-    report = json.loads((output / "smoke.json").read_text(encoding="utf-8"))
+    process = subprocess.run(command, check=False, timeout=180, env=environment)
+    report_path = output / "smoke.json"
+    report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.is_file() else {"error": "Application did not write a smoke report"}
+    diagnostics = ROOT / "tmp/install-check-smoke.json"
+    diagnostics.parent.mkdir(parents=True, exist_ok=True)
+    diagnostics.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    if process.returncode:
+        raise RuntimeError(f"Installed application exited with {process.returncode}: {json.dumps(report, ensure_ascii=False)}")
     assert report.get("ok") and report.get("frozen"), report
     assert "signed_pdf_visible_appearance" in report["checks"], report
     assert "convert_images_chinese_text_and_order" in report["checks"], report

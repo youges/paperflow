@@ -1170,8 +1170,9 @@ def main():
                           "title": window.windowTitle(), "checks": checks}
                 code = 0
             except Exception as exc:
+                import traceback
                 logging.exception("Packaged smoke check failed")
-                result = {"ok": False, "error": str(exc)}
+                result = {"ok": False, "error": str(exc), "error_type": type(exc).__name__, "traceback": traceback.format_exc()}
                 code = 1
             (folder / "smoke.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
             app.exit(code)
