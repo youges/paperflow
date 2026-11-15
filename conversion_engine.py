@@ -90,13 +90,20 @@ def _office_pdf(source: Path, output: Path, executable: Path, workspace: Path,
                "--convert-to", "pdf", "--outdir", str(converted), str(local_source)]
     environment = os.environ.copy()
     # PyInstaller points these at its own Qt; LO must load its own runtime.
-    for key in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QT_QPA_PLATFORM", "QML2_IMPORT_PATH"):
+    for key in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH", "QT_QPA_PLATFORM", "QML2_IMPORT_PATH",
+                "PYTHONHOME", "PYTHONPATH", "UNO_PATH", "URE_BOOTSTRAP"):
         environment.pop(key, None)
     if "LD_LIBRARY_PATH_ORIG" in environment:
         environment["LD_LIBRARY_PATH"] = environment["LD_LIBRARY_PATH_ORIG"]
     else:
         environment.pop("LD_LIBRARY_PATH", None)
-    environment["SAL_USE_VCLPLUGIN"] = "svp"
+    if os.name == "nt":
+        # Developer tools on the inherited PATH can supply incompatible DLLs.
+        # LibreOffice needs its own libraries and the Windows system runtime.
+        windows = Path(os.environ.get("WINDIR", "C:/Windows"))
+        environment["PATH"] = os.pathsep.join((str(executable.parent), str(windows / "System32"), str(windows)))
+    else:
+        environment["SAL_USE_VCLPLUGIN"] = "svp"
     frozen_directory = getattr(sys, "_MEIPASS", "")
     if frozen_directory:
         environment["PATH"] = os.pathsep.join(
@@ -131,7 +138,10 @@ def _office_pdf(source: Path, output: Path, executable: Path, workspace: Path,
     generated = converted / "document.pdf"
     if process.returncode != 0 or not generated.is_file():
         # LO can exit successfully without producing a PDF (e.g. password files).
-        raise PdfError(f"无法转换 {source.name}，请检查是否加密、损坏，或缺少对应的 LibreOffice 组件。")
+        error = PdfError(f"无法转换 {source.name}，请检查是否加密、损坏，或缺少对应的 LibreOffice 组件。")
+        details = (workspace / "office.log").read_bytes()[-4000:].decode("utf-8", errors="replace")
+        error.add_note(f"LibreOffice exit status: {process.returncode}. Diagnostic output: {details}")
+        raise error
     shutil.move(generated, output)
 
 
@@ -241,9 +251,11 @@ def convert_documents(paths: Iterable[Path | str], output_parent: Path | str, *,
             try:
                 extension = source.suffix.lower()
                 if extension in OFFICE_EXTENSIONS:
-                    workspace = staging / f"office-{index}"
-                    workspace.mkdir()
-                    _office_pdf(source, target, executable, workspace, cancel, office_timeout)
+                    # Keep LO's profile and internal paths short even when the
+                    # user's output directory is deeply nested or on another disk.
+                    with tempfile.TemporaryDirectory(prefix="paperflow-office-") as office_temporary:
+                        workspace = Path(office_temporary).resolve()
+                        _office_pdf(source, target, executable, workspace, cancel, office_timeout)
                 elif extension == ".txt":
                     _text_pdf(source, target, text_encoding, cancel)
                 else:

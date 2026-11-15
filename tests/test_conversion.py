@@ -163,6 +163,21 @@ def test_legacy_office_formats(office, tmp_path, factory, input_ext, legacy_ext,
     assert tag in content(folder / "legacy.pdf")
 
 
+def test_office_long_output_directory_and_inherited_environment(office, tmp_path, monkeypatch):
+    source = make_docx(tmp_path / "word.docx")
+    destination = tmp_path / ("nested-output-" * 6) / ("more-subfolders-" * 5)
+    destination.mkdir(parents=True)
+    poison = tmp_path / "unrelated-runtime"
+    poison.mkdir()
+    monkeypatch.setenv("PATH", str(poison) + os.pathsep + os.environ.get("PATH", ""))
+    monkeypatch.setenv("PYTHONHOME", str(poison))
+    monkeypatch.setenv("PYTHONPATH", str(poison))
+    monkeypatch.setenv("QT_PLUGIN_PATH", str(poison))
+    folder = convert_documents([source], destination, libreoffice=str(office))
+    assert "WORD SAMPLE" in content(folder / "word.pdf")
+    assert os.environ["PYTHONHOME"] == str(poison)
+
+
 def test_office_failure_exit_zero_and_timeout_cleanup(tmp_path, monkeypatch):
     source = make_docx(tmp_path / "file.docx")
     monkeypatch.setattr(engine, "find_libreoffice", lambda *args: Path(sys.executable))
