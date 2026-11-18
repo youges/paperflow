@@ -33,6 +33,8 @@ def smoke(executable, output, graphical=False):
     assert report.get("ok") and report.get("frozen"), report
     assert "signed_pdf_visible_appearance" in report["checks"], report
     assert "convert_images_chinese_text_and_order" in report["checks"], report
+    assert "pdf_to_word_editable" in report["checks"], report
+    assert "pdf_to_word_page_images" in report["checks"], report
     if os.environ.get("PAPERFLOW_REQUIRE_OFFICE") == "1":
         assert "convert_word_excel_powerpoint" in report["checks"], report
 

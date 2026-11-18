@@ -165,7 +165,13 @@ def test_legacy_office_formats(office, tmp_path, factory, input_ext, legacy_ext,
 
 def test_office_long_output_directory_and_inherited_environment(office, tmp_path, monkeypatch):
     source = make_docx(tmp_path / "word.docx")
-    destination = tmp_path / ("nested-output-" * 6) / ("more-subfolders-" * 5)
+    first, second = "nested-output-" * 6, "more-subfolders-" * 5
+    if os.name == "nt":
+        # Exercise nested output without requiring Windows' optional long-path
+        # registry policy just to create the fixture itself.
+        available = max(8, 180 - len(str(tmp_path)) - 2)
+        first, second = first[:available // 2], second[:available - available // 2]
+    destination = tmp_path / first / second
     destination.mkdir(parents=True)
     poison = tmp_path / "unrelated-runtime"
     poison.mkdir()

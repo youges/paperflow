@@ -40,6 +40,18 @@ def prepare_assets():
             data = response.read()
         target.write_bytes(data)
     import importlib.metadata
+    for name in ("pdf2docx", "python-docx", "numpy", "opencv-python-headless", "fonttools", "lxml", "typing_extensions", "fire", "termcolor"):
+        dependency = importlib.metadata.distribution(name)
+        destination = licenses / "dependencies" / f"{name}-{dependency.version}"
+        for file in dependency.files or ():
+            parts = file.parts
+            if not parts or not parts[0].endswith(".dist-info"):
+                continue
+            if not any("licen" in part.lower() or "copying" in part.lower() or "notice" in part.lower() for part in parts[1:]):
+                continue
+            target = destination.joinpath(*parts[1:])
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(Path(dependency.locate_file(file)).read_bytes())
     distribution = importlib.metadata.distribution("pyinstaller")
     installed = next(Path(distribution.locate_file(file)) for file in distribution.files
                      if str(file).endswith("COPYING.txt"))
@@ -55,7 +67,7 @@ def prepare_assets():
 def package():
     source = ROOT / "dist/PaperFlow-source.zip"
     files = [ROOT / name for name in (
-        "app.py", "app_config.py", "launcher.py", "pdf_engine.py", "conversion_engine.py", "requirements.txt", "requirements-dev.txt",
+        "app.py", "app_config.py", "launcher.py", "pdf_engine.py", "conversion_engine.py", "word_engine.py", "requirements.txt", "requirements-dev.txt",
         "README.md", "build.ps1", "build.sh", "THIRD_PARTY_NOTICES.md", "LICENSE.txt", ".gitignore", ".gitattributes",
     )]
     for folder in ("tests", "tools", "assets", "licenses", ".github", "packaging"):
@@ -71,8 +83,9 @@ def package():
     with zipfile.ZipFile(ROOT / "dist/PaperFlow-Windows.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in [ROOT / "dist/PaperFlow.exe", source, ROOT / "README.md", ROOT / "LICENSE.txt", ROOT / "THIRD_PARTY_NOTICES.md"]:
             archive.write(path, "PaperFlow/" + path.name)
-        for path in (ROOT / "licenses").iterdir():
-            archive.write(path, "PaperFlow/licenses/" + path.name)
+        for path in (ROOT / "licenses").rglob("*"):
+            if path.is_file():
+                archive.write(path, "PaperFlow/licenses/" + path.relative_to(ROOT / "licenses").as_posix())
 
 
 if __name__ == "__main__":

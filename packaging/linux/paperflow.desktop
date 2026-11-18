@@ -2,8 +2,8 @@
 Type=Application
 Name=PaperFlow
 Name[zh_CN]=纸序 PDF 工具
-Comment=Merge, split and convert documents to PDF locally
-Comment[zh_CN]=本地合并、插入、拆分 PDF 及文档转 PDF
+Comment=Merge, split and convert PDF and Word documents locally
+Comment[zh_CN]=本地合并、拆分 PDF 及文档与 PDF 双向转换
 Exec=/usr/bin/paperflow
 Icon=paperflow
 Terminal=false

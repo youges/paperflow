@@ -6,3 +6,5 @@ tmp/
 output/
 dist/
 *.spec
+/licenses/dependencies/
+/assets/paperflow.png

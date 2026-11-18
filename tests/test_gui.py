@@ -20,8 +20,8 @@ def qtapp():
     return app
 
 
-def wait_until_idle(window, app):
-    limit = time.monotonic() + 20
+def wait_until_idle(window, app, timeout=20):
+    limit = time.monotonic() + timeout
     while window.busy and time.monotonic() < limit:
         app.processEvents()
         QTest.qWait(10)
@@ -139,4 +139,37 @@ def test_gui_document_conversion_reorder_and_modes(qtapp, tmp_path, monkeypatch)
     assert merged.is_file()
     QTest.mouseClick(window.document_clear, Qt.MouseButton.LeftButton)
     assert not window.run_button.isEnabled()
+    window.close()
+
+
+def test_gui_pdf_to_word_selection_and_modes(qtapp, tmp_path, monkeypatch):
+    from test_word import word_text
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: pytest.fail(str(args[2])))
+    source = make_pdf(tmp_path / "招标样例.pdf", "WORD GUI", 3, "secret")
+    monkeypatch.setattr(QInputDialog, "getText", lambda *args: ("secret", True))
+    window = MainWindow()
+    window.show()
+    window._switch(3)
+    assert not window.run_button.isEnabled()
+    window._load_files([str(source)], "word")
+    wait_until_idle(window, qtapp)
+    assert window.word_source.pages == 3
+    assert not window.word_preview.original.isNull()
+    assert not window.word_dpi.isEnabled()
+    window.word_range.setText("3,1")
+    target = tmp_path / "gui.docx"
+    window.word_output.setText(str(target))
+    QTest.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
+    wait_until_idle(window, qtapp, timeout=90)
+    text = word_text(target)
+    assert "WORD GUI PAGE 1" in text and "WORD GUI PAGE 3" in text
+    assert "WORD GUI PAGE 2" not in text
+    assert "原 PDF 的 2 页" in window.status.text()
+    window.word_mode.setCurrentIndex(1)
+    assert window.word_dpi.isEnabled()
+    window.word_output.setText(str(tmp_path / "images.docx"))
+    QTest.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
+    wait_until_idle(window, qtapp)
+    assert not word_text(window.last_output)
+    assert target.is_file()
     window.close()

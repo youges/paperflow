@@ -40,3 +40,19 @@ it through the operating system package manager. Its own license notices and
 source are available at https://www.libreoffice.org/about-us/licenses/.
 The TXT converter uses the unmodified CJK fallback font provided by MuPDF;
 this is separate from the system fonts used by the application interface.
+
+PDF-to-Word conversion additionally uses these unmodified components. Their
+upstream license texts (including bundled native-library notices) are copied
+from installed distributions into licenses/dependencies/ during the build:
+* pdf2docx 0.5.13, Artifex Software and contributors: MIT.
+  https://github.com/ArtifexSoftware/pdf2docx
+* python-docx 1.2.0: MIT. https://github.com/python-openxml/python-docx
+* NumPy 2.5.5: BSD-3-Clause, with bundled BLAS/runtime notices.
+  https://numpy.org/
+* OpenCV Python headless 5.1.0.95: Apache-2.0 and bundled third-party notices.
+  https://github.com/opencv/opencv-python
+* FontTools 4.68.0: MIT. https://github.com/fonttools/fonttools
+* lxml 6.1.3: BSD-3-Clause and libxml2/libxslt notices. https://lxml.de/
+* typing_extensions 4.16.0: PSF-2.0. https://github.com/python/typing_extensions
+* Fire 0.7.1: Apache-2.0. https://github.com/google/python-fire
+* termcolor 3.3.0: MIT. https://github.com/termcolor/termcolor

@@ -1,23 +1,34 @@
 # 纸序 PaperFlow
 
-一个在本机运行的中文 PDF 合并、拆分与文档转换工具。无需账户，无需上传文件。
+一个在本机运行的中文 PDF 合并、拆分与双向文档转换工具。无需账户，无需上传文件。
 
 [下载 Linux / Windows 安装包](https://github.com/youges/paperflow/releases/latest) · [构建进度](https://github.com/youges/paperflow/actions)
 
 ## 直接使用
 
-版本 1.3.0 提供以下 64 位（x86_64 / amd64）发行包，无需安装 Python：
+版本 1.4.0 提供以下 64 位（x86_64 / amd64）发行包，无需安装 Python：
 
 | 平台 | 文件 | 安装方式 |
 | --- | --- | --- |
-| Windows 10 / 11 | `PaperFlow-1.3.0-Windows-x64-Setup.exe` | 双击安装；当前用户安装，无需管理员权限，支持开始菜单、可选桌面快捷方式和卸载 |
-| Ubuntu 24.04+ / Debian 13+ | `paperflow_1.3.0_amd64.deb` | 在下载目录执行 `sudo apt install ./paperflow_1.3.0_amd64.deb`，然后在应用菜单打开“纸序 PDF 工具”，或运行 `paperflow` |
-| Linux 便携版 | `PaperFlow-1.3.0-Linux-x86_64.tar.gz` | 解压后执行 `./PaperFlow/PaperFlow`，仍需系统桌面依赖和 glibc 2.39+ |
+| Windows 10 / 11 | `PaperFlow-1.4.0-Windows-x64-Setup.exe` | 双击安装；当前用户安装，无需管理员权限，支持开始菜单、可选桌面快捷方式和卸载 |
+| Ubuntu 24.04+ / Debian 13+ | `paperflow_1.4.0_amd64.deb` | 在下载目录执行 `sudo apt install ./paperflow_1.4.0_amd64.deb`，然后在应用菜单打开“纸序 PDF 工具”，或运行 `paperflow` |
+| Linux 便携版 | `PaperFlow-1.4.0-Linux-x86_64.tar.gz` | 解压后执行 `./PaperFlow/PaperFlow`，仍需系统桌面依赖和 glibc 2.39+ |
 | Windows 便携版 | `PaperFlow-Windows.zip` / `PaperFlow.exe` | 解压后双击程序 |
 
 Linux 包在 Ubuntu 24.04 amd64 上构建、安装及图形界面自检；其他发行版仅在运行库兼容时可使用，不包含 ARM / Alpine musl 支持。建议安装 `fonts-noto-cjk` 以正确显示中文。Debian 13 属兼容目标，未单独在 Debian 上运行集成测试。
 
 Windows 可在“设置 → 应用”或开始菜单的卸载入口卸载；Linux 卸载命令为 `sudo apt remove paperflow`。卸载不会删除用户自己的 PDF 和个人设置。便携版首次打开需要片刻解压运行环境。
+
+### PDF 转 Word（1.4 新增）
+
+1. 进入「PDF 转 Word」，选择源 PDF；加密文件会提示输入打开密码。
+2. 选择「可编辑 Word」重建文字、图片及表格，或选择「原页图片」保留页面外观。
+3. 页码范围留空处理全部页面，也可填写 `1-5, 8, 10-12`，按原 PDF 页序写入同一个 `.docx`。
+4. 选择保存路径，点击「转换为 Word」。已有同名结果会询问是否替换，失败或取消时不会留下不完整的 Word 文件。
+
+PDF 转 Word 使用程序内置组件，无需安装 Word、WPS 或 LibreOffice。输出可用这些应用打开编辑。可编辑模式包含表格列宽修复和防裁切处理，尽量还原原布局；PDF 是固定版式，复杂表格、特殊字体、跨页内容和在不同 Office 软件中的分页可能仍有差异，请核对转换结果。
+
+本功能不含 OCR。没有可提取文字的扫描 PDF，在可编辑模式下会明确提示；可先 OCR，或选择原页图片模式。图片模式每页放置一张整页图片，可选 150/200/300 DPI，文字不可编辑，适合保留扫描页、可见签名、印章和批注。可编辑模式会在内存中固定所选页面的数字签名表单外观再重建版面；两种模式都不继承原 PDF 数字签名的验证效力，原始 PDF 保持完整。
 
 ### 文档转 PDF（1.3 新增）
 
@@ -35,7 +46,7 @@ Windows 可在“设置 → 应用”或开始菜单的卸载入口卸载；Linu
 
 Office 文档需要安装免费的 [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/)，无需 Microsoft Office。Windows 在本页点击「下载 LibreOffice」，安装 Writer、Calc、Impress 后点击「重新检测」。也可选择其 `program/soffice.com` 或 `soffice.exe`；Linux 选择 `soffice` 或 `libreoffice`。程序会记住手选路径，清空路径可恢复自动检测。开发/自动化环境也可设置 `PAPERFLOW_LIBREOFFICE`。
 
-Linux 使用普通 `sudo apt install ./paperflow_1.3.0_amd64.deb` 时会通过推荐依赖安装上述组件。若使用了 `--no-install-recommends` 或便携版，请执行 `sudo apt install libreoffice-writer libreoffice-calc libreoffice-impress fonts-noto-cjk`。未安装组件时，图片和 TXT 仍可使用。
+Linux 使用普通 `sudo apt install ./paperflow_1.4.0_amd64.deb` 时会通过推荐依赖安装上述组件。若使用了 `--no-install-recommends` 或便携版，请执行 `sudo apt install libreoffice-writer libreoffice-calc libreoffice-impress fonts-noto-cjk`。未安装组件时，图片和 TXT 仍可使用。
 
 TXT 自动尝试 UTF-8、带 BOM 的 UTF-16 和 GB18030；也可手动选择编码，UTF-16 无 BOM 文件请手选对应编码前先保存为带 BOM 的文本。输出为 A4 纵向，内置中文后备字体，无需安装系统中文字体。保留可复制文字，长行自动换行，长文自动分页。
 
@@ -108,6 +119,6 @@ python -m venv .venv
 
 Windows 构建安装包需要 Inno Setup 6；Linux 在 Ubuntu 24.04 安装桌面依赖、`python3-venv`、`dpkg-dev` 后运行 `bash build.sh`。`tools/build_installers.py` 创建原生安装包，`tools/verify_install.py` 验证安装后的程序和卸载。GitHub Actions 分别在 Windows 和 Ubuntu 构建，两个平台的测试全部通过后才发布到 Release。
 
-源码结构：`app.py` 为桌面界面，`launcher.py` 为带启动日志的打包入口，`pdf_engine.py` 为独立 PDF 处理核心，`conversion_engine.py` 为本地文档转换引擎，`tests/` 为功能与界面集成测试，`tools/` 为构建和界面检查工具。
+源码结构：`app.py` 为桌面界面，`launcher.py` 为带启动日志的打包入口，`pdf_engine.py` 为独立 PDF 处理核心，`conversion_engine.py` 为本地文档转 PDF 引擎，`word_engine.py` 为 PDF 转 Word 引擎，`tests/` 为功能与界面集成测试，`tools/` 为构建和界面检查工具。
 
 本项目以 GNU AGPL v3 或更新版本许可发布；使用 PyMuPDF（AGPL / 商业双许可）及 PySide6 / Qt / Shiboken（按随附许可）。详见 `LICENSE.txt`、`THIRD_PARTY_NOTICES.md` 和 `licenses/`。

@@ -29,6 +29,7 @@ from pdf_engine import (
 from conversion_engine import (
     FILE_FILTER, convert_documents, find_libreoffice, validate_inputs,
 )
+from word_engine import pdf_to_word
 
 
 STYLE = """
@@ -282,6 +283,7 @@ class MainWindow(QMainWindow):
         self.workers: set[Worker] = set()
         self.split_source: PdfSource | None = None
         self.base_source: PdfSource | None = None
+        self.word_source: PdfSource | None = None
         self.page_index = 0
         self.last_output: Path | None = None
         self.busy = False
@@ -315,7 +317,7 @@ class MainWindow(QMainWindow):
         side.addSpacing(35)
         side.addWidget(label("  文件工具", "muted"))
         self.navigation = QButtonGroup(self)
-        for index, title in enumerate(("合并 PDF", "拆分 PDF", "文档转 PDF")):
+        for index, title in enumerate(("合并 PDF", "拆分 PDF", "文档转 PDF", "PDF 转 Word")):
             nav = button(title, role="nav")
             nav.setCheckable(True)
             self.navigation.addButton(nav, index)
@@ -347,6 +349,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(self._merge_page())
         self.pages.addWidget(self._split_page())
         self.pages.addWidget(self._convert_page())
+        self.pages.addWidget(self._word_page())
         self.scroll = QScrollArea()
         self.scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll.setWidgetResizable(True)
@@ -632,6 +635,81 @@ class MainWindow(QMainWindow):
         self._detect_office()
         return widget
 
+    def _word_page(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(15)
+        columns = QHBoxLayout()
+        columns.setSpacing(15)
+        sourcecard, left = card()
+        row = QHBoxLayout()
+        row.addWidget(label("源 PDF", "section"))
+        row.addStretch()
+        row.addWidget(button("选择 PDF", self._choose_word_source))
+        left.addLayout(row)
+        self.word_source_name = label("尚未选择文件", "muted", True)
+        self.word_source_name.setMinimumWidth(0)
+        left.addWidget(self.word_source_name)
+        self.word_preview = Preview()
+        left.addWidget(self.word_preview, 1)
+        self.word_source_summary = label("选择文件后显示首页预览。", "muted", True)
+        left.addWidget(self.word_source_summary)
+        columns.addWidget(sourcecard, 1)
+        settingscard, right = card()
+        right.addWidget(label("Word 转换设置", "section"))
+        right.addWidget(label("转换方式", "muted"))
+        self.word_mode = QComboBox()
+        self.word_mode.addItem("可编辑 Word · 还原文字和表格", "editable")
+        self.word_mode.addItem("原页图片 · 保留外观，文字不可编辑", "page_images")
+        self.word_mode.currentIndexChanged.connect(self._refresh)
+        right.addWidget(self.word_mode)
+        self.word_mode_help = label("", "muted", True)
+        right.addWidget(self.word_mode_help)
+        right.addWidget(label("页码范围", "muted"))
+        self.word_range = QLineEdit()
+        self.word_range.setPlaceholderText("全部页面，或填写 1-5, 8, 10-12")
+        self.word_range.setAccessibleName("PDF 转 Word 页码范围，留空表示全部页面")
+        right.addWidget(self.word_range)
+        right.addWidget(label("选中页面按原文档顺序写入同一个 Word。", "muted", True))
+        row = QHBoxLayout()
+        self.word_dpi_label = label("图片清晰度", "muted")
+        row.addWidget(self.word_dpi_label)
+        self.word_dpi = QComboBox()
+        for title, value in (("标准 · 150 DPI", 150), ("高清 · 200 DPI", 200), ("精细 · 300 DPI", 300)):
+            self.word_dpi.addItem(title, value)
+        row.addWidget(self.word_dpi, 1)
+        right.addLayout(row)
+        right.addWidget(label("输出 .docx，可用 Word、WPS 或 LibreOffice 打开。转换在本机完成，无需安装 Office 转换组件。", "muted", True))
+        right.addWidget(label("可编辑模式会重建排版，复杂表格、字体和分页可能有差异；扫描件需先 OCR。需要完整可见外观时可选原页图片模式。", "muted", True))
+        right.addWidget(label("转换结果不继承 PDF 数字签名的验证效力，请保留原始 PDF。", "muted", True))
+        right.addStretch()
+        columns.addWidget(settingscard, 1)
+        layout.addLayout(columns, 1)
+        outputcard, output = card()
+        output.addWidget(label("保存 Word 文档", "section"))
+        row = QHBoxLayout()
+        self.word_output = QLineEdit()
+        self.word_output.setPlaceholderText("选择 .docx 的保存路径")
+        self.word_output.setAccessibleName("PDF 转 Word 输出路径")
+        row.addWidget(self.word_output, 1)
+        row.addWidget(button("浏览…", self._choose_word_output))
+        output.addLayout(row)
+        output.addWidget(label("原始 PDF 保持完整；失败或取消时清理本次临时结果。", "muted", True))
+        layout.addWidget(outputcard)
+        return widget
+
+    def _choose_word_source(self):
+        path, _ = QFileDialog.getOpenFileName(self, "选择要转换为 Word 的 PDF", self._last_directory(), "PDF 文件 (*.pdf)")
+        if path:
+            self._load_files([path], "word")
+
+    def _choose_word_output(self):
+        path, _ = QFileDialog.getSaveFileName(self, "保存 Word 文档", self.word_output.text() or str(Path(self._last_directory()) / "转换结果.docx"),
+                                             "Word 文档 (*.docx)", options=QFileDialog.Option.DontConfirmOverwrite)
+        if path:
+            self.word_output.setText(path if path.lower().endswith(".docx") else path + ".docx")
+
     def _documents(self):
         return [self.document_list.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.document_list.count())]
 
@@ -698,10 +776,11 @@ class MainWindow(QMainWindow):
             return
         self.navigation.button(index).setChecked(True)
         self.pages.setCurrentIndex(index)
-        self.heading.setText(("按顺序，合为一份。", "逐页拆分，清楚有序。", "多种格式，统一成 PDF。")[index])
+        self.heading.setText(("按顺序，合为一份。", "逐页拆分，清楚有序。", "多种格式，统一成 PDF。", "PDF 内容，继续编辑。")[index])
         self.subheading.setText(("先导入的文件排在前面，每一页都在正确的位置。",
                                  "导出独立 PDF 或图片，让每一页拥有自己的数字编号。",
-                                 "Word、Excel、PowerPoint、图片与 TXT，在本机批量转换。")[index])
+                                 "Word、Excel、PowerPoint、图片与 TXT，在本机批量转换。",
+                                 "还原文字与表格为 Word，或按原页外观保存为图片文档。")[index])
         self._refresh()
 
     def _sources(self) -> list[PdfSource]:
@@ -742,14 +821,19 @@ class MainWindow(QMainWindow):
         self.naming_preview.setText("命名示例：" + "、".join(samples))
         splitting = self.pages.currentIndex() == 1
         converting = self.pages.currentIndex() == 2
+        to_word = self.pages.currentIndex() == 3
+        page_images = self.word_mode.currentData() == "page_images"
+        self.word_dpi.setEnabled(not self.busy and page_images)
+        self.word_dpi_label.setEnabled(page_images)
+        self.word_mode_help.setText("每页渲染为整页图片，保留可见印章、批注和页面外观；图片中的文字不可编辑。" if page_images else "识别 PDF 已有文字、段落、图片和表格，生成可编辑的 .docx；不包含扫描文字识别（OCR）。")
         document_count, document_row = self.document_list.count(), self.document_list.currentRow()
         self.document_count.setText(f"{document_count} 个文档" if document_count else "尚未添加文件")
         self.document_up.setEnabled(not self.busy and document_row > 0)
         self.document_down.setEnabled(not self.busy and 0 <= document_row < document_count - 1)
         self.document_remove.setEnabled(not self.busy and document_row >= 0)
         self.document_clear.setEnabled(not self.busy and document_count > 0)
-        self.run_button.setText("转换并保存" if converting else "拆分并保存" if splitting else "插入并另存" if inserting else "合并并保存")
-        ready = document_count > 0 if converting else self.split_source is not None if splitting else count > 0 and (not inserting or self.base_source is not None)
+        self.run_button.setText("转换为 Word" if to_word else "转换并保存" if converting else "拆分并保存" if splitting else "插入并另存" if inserting else "合并并保存")
+        ready = self.word_source is not None if to_word else document_count > 0 if converting else self.split_source is not None if splitting else count > 0 and (not inserting or self.base_source is not None)
         self.run_button.setEnabled(not self.busy and ready)
         self.file_list.viewport().update()
         self.document_list.viewport().update()
@@ -804,7 +888,7 @@ class MainWindow(QMainWindow):
         if self.busy or not paths:
             return
         paths = [str(Path(path)) for path in paths]
-        if mode in {"split", "base"}:
+        if mode in {"split", "base", "word"}:
             paths = paths[:1]
         self.settings.setValue("last_directory", str(Path(paths[0]).parent))
 
@@ -863,6 +947,14 @@ class MainWindow(QMainWindow):
                 self.base_name.setToolTip(str(result.path))
                 self.insert_page.setMaximum(result.pages)
                 self.merge_output.setText(str(result.path.with_name(result.path.stem + "_插入结果.pdf")))
+            elif mode == "word":
+                self.word_source = result
+                self.word_source_name.setText(result.path.name)
+                self.word_source_name.setToolTip(str(result.path))
+                self.word_preview.display(result.preview)
+                self.word_source_summary.setText(f"共 {result.pages} 页 · {size_text(result.size)} · 首页预览")
+                self.word_range.clear()
+                self.word_output.setText(str(result.path.with_name(result.path.stem + "_转换.docx")))
             elif mode == "merge":
                 item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, result)
@@ -919,7 +1011,29 @@ class MainWindow(QMainWindow):
         if self.busy:
             return
         try:
-            if self.pages.currentIndex() == 2:
+            if self.pages.currentIndex() == 3:
+                source = self.word_source
+                if source is None:
+                    return
+                selected = parse_pages(self.word_range.text(), source.pages)
+                if not self.word_output.text().strip():
+                    self._choose_word_output()
+                    if not self.word_output.text().strip():
+                        return
+                destination = Path(self.word_output.text().strip()).absolute()
+                overwrite = False
+                if destination.exists():
+                    overwrite = QMessageBox.question(self, "文件已存在", f"{destination.name} 已存在，是否替换？",
+                                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                                      QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes
+                    if not overwrite:
+                        return
+                self._word_count = len(selected)
+                options = dict(pages=self.word_range.text(), mode=self.word_mode.currentData(),
+                               dpi=self.word_dpi.currentData(), overwrite=overwrite)
+                self._run_task(lambda p, c: pdf_to_word(source, destination, progress=p, cancel=c, **options),
+                               self._word_complete, "正在转换 PDF 为 Word…")
+            elif self.pages.currentIndex() == 2:
                 sources = self._documents()
                 if not sources:
                     return
@@ -1044,6 +1158,12 @@ class MainWindow(QMainWindow):
         self.status.setText(f"✓ 转换完成，已保存 {self._converted_count} 个 PDF")
         self.status.setToolTip(str(path))
 
+    def _word_complete(self, path: Path):
+        self.last_output = path
+        self.open_result.show()
+        self.status.setText(f"✓ Word 转换完成，已处理原 PDF 的 {self._word_count} 页")
+        self.status.setToolTip(str(path))
+
     def _open_result(self):
         if self.last_output is None:
             return
@@ -1124,6 +1244,19 @@ def _smoke_pdf_checks(folder: Path) -> list[str]:
         assert len(document) >= 3 and "中文转换" in document[0].get_text()
         assert document[-1].get_images()
     checks.append("convert_images_chinese_text_and_order")
+    from docx import Document
+    import zipfile
+    word = pdf_to_word(combined, testdir / "可编辑.docx", pages="3,1")
+    word_document = Document(word)
+    content = "".join(paragraph.text for paragraph in word_document.paragraphs)
+    assert len(word_document.sections) == 2
+    assert content.index("FIRST PAGE 1") < content.index("SECOND PAGE 1")
+    checks.append("pdf_to_word_editable")
+    images_word = pdf_to_word(combined, testdir / "原页图片.docx", pages="1-2", mode="page_images", dpi=72)
+    with zipfile.ZipFile(images_word) as archive:
+        assert len([name for name in archive.namelist() if name.startswith("word/media/")]) == 2
+    assert len(Document(images_word).sections) == 2
+    checks.append("pdf_to_word_page_images")
     if "--document-fixtures" in sys.argv:
         fixtures = Path(sys.argv[sys.argv.index("--document-fixtures") + 1])
         office_files = [fixtures / name for name in ("word.docx", "excel.xlsx", "slides.pptx")]
@@ -1165,6 +1298,9 @@ def main():
                 window._switch(2)
                 app.processEvents()
                 window.grab().save(str(folder / "packaged-convert.png"))
+                window._switch(3)
+                app.processEvents()
+                window.grab().save(str(folder / "packaged-word.png"))
                 checks = _smoke_pdf_checks(folder)
                 result = {"ok": True, "frozen": bool(getattr(sys, "frozen", False)),
                           "title": window.windowTitle(), "checks": checks}
